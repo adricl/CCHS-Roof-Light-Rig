@@ -83,7 +83,7 @@ void setup() {
     while (1);
   }
   sensor.setDistanceMode(VL53L1X::Long);
-  sensor.setMeasurementTimingBudget(100000);
+  sensor.setMeasurementTimingBudget(150000);
   sensor.startContinuous(50);
 }
  
