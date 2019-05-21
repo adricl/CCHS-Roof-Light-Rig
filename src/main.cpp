@@ -7,6 +7,7 @@
 
 #define DIST_SENSOR_TO_LED  25
 
+
 //LED
 #define NUM_LEDS              171
 #define NUM_LEDS_PER_METER    30
@@ -26,10 +27,11 @@ CRGB leds[LED_STRIPS][NUM_LEDS];
 VL53L1X sensor;
 int posLast = 0;
 int falsePosCount = 0;
-SimpleKalmanFilter simpleKalmanFilter(10, 10, .1);
+SimpleKalmanFilter simpleKalmanFilter(5, 5, 1);
 
 int calcPosTimeOfFlight(){
   sensor.read();
+
   Serial.print("range: ");
   Serial.print(sensor.ranging_data.range_mm/10);
   Serial.print("\tstatus: ");
@@ -47,7 +49,13 @@ int calcPosTimeOfFlight(){
   Serial.print(pos);
   Serial.print(" distance ");
   Serial.println(dist);
-  return pos;
+  if (sensor.ranging_data.peak_signal_count_rate_MCPS > .4){
+    return pos;
+  }
+  else {
+    return -1;
+  }
+  
 }
 
 void setup() {
@@ -79,30 +87,18 @@ void setup() {
 }
  
 void loop() {
-  bool falseReading = false;
+  // bool falseReading = false;
   int currPos = calcPosTimeOfFlight();
-  int posDiffSize = abs(currPos - posLast) + 5;
+  int posDiffSize = abs(currPos - posLast) + 15;
   static byte colour;
   colour += 1;
 
   int pos = int((posLast + currPos)/2);
   posLast = currPos;
   
-  if (pos > 100){
-    falsePosCount ++;
-  }
-  else {
-    falsePosCount --;
-  }
-  if (falsePosCount > 15){
-    falseReading = true;
-    falsePosCount = 15;
-  }
-  
-
-  if (pos >= 0 && !falseReading){
+  if (pos >= 0 && posDiffSize < 30){
     for(int i = 0; i < posDiffSize; i++){
-      int ledPos = pos + i;
+      int ledPos = pos - posDiffSize/2 + i;
       if (ledPos < NUM_LEDS && ledPos >= 0){
         for(int j = 0; j < LED_STRIPS; j++){
           leds[j][ledPos] = CHSV(colour, 255, 255);    
@@ -115,7 +111,7 @@ void loop() {
     FastLED.show();
 
     for(int i = 0; i < posDiffSize; i++){
-      int ledPos = pos + i;
+      int ledPos = pos - posDiffSize/2 + i;
       if (ledPos < NUM_LEDS && ledPos >= 0){
         for(int j = 0; j < LED_STRIPS; j++){
           leds[j][ledPos] = CRGB::Black; 
