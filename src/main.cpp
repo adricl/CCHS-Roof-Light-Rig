@@ -1,48 +1,32 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <NewPing.h>
 #include <FastLED.h>
 
 #include <VL53L1X.h>
+#include "SimpleKalmanFilter.h"
 
-
-//UltraSonics
-#define TRIGGER_PIN         2
-#define ECHO_PIN            4
-#define MAX_DISTANCE        200
-
-#define DIST_SENSOR_TO_LED  10
+#define DIST_SENSOR_TO_LED  25
 
 //LED
-#define NUM_LEDS            171
-#define NUM_LEDS_PER_METER  40
-#define DATA_PIN            5
+#define NUM_LEDS              171
+#define NUM_LEDS_PER_METER    30
+#define DATA_PIN_0            18
+#define DATA_PIN_1            5
+#define DATA_PIN_2            4
+#define DATA_PIN_3            2
+#define DATA_PIN_4            15
+#define DATA_PIN_5            13
+
 #define LED_TYPE            WS2812
 #define COLOR_ORDER         GRB
 
-NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
-CRGB leds[NUM_LEDS];
+#define LED_STRIPS          6
 
+CRGB leds[LED_STRIPS][NUM_LEDS];
 VL53L1X sensor;
-
-int calcPosUltrasonic(){
-  long dist = sonar.ping_cm();
-  Serial.print("Distance: ");
-  Serial.print(dist);
-  Serial.println("cm ");
-  if (dist > DIST_SENSOR_TO_LED && dist < MAX_DISTANCE) {
-      int ledCount = (int)((dist - DIST_SENSOR_TO_LED)  / (100 / NUM_LEDS_PER_METER));
-      Serial.print("Pos: ");
-      Serial.print(NUM_LEDS - ledCount);
-      Serial.print(" ledCount: ");
-      Serial.println(ledCount);
-      return NUM_LEDS - ledCount;
-
-  }
-  else {
-      return -1;
-  }
-}
+int posLast = 0;
+int falsePosCount = 0;
+SimpleKalmanFilter simpleKalmanFilter(10, 10, .1);
 
 int calcPosTimeOfFlight(){
   sensor.read();
@@ -57,7 +41,8 @@ int calcPosTimeOfFlight(){
 
   //Convert to cm
   uint16_t dist = sensor.ranging_data.range_mm / 10;
-  int pos = (int)(dist  / (100 / NUM_LEDS_PER_METER));
+  float estimate = simpleKalmanFilter.updateEstimate(dist);
+  int pos = (int)((estimate + DIST_SENSOR_TO_LED)  / (100 / NUM_LEDS_PER_METER));
   Serial.print("Pos: ");
   Serial.print(pos);
   Serial.print(" distance ");
@@ -69,7 +54,13 @@ void setup() {
   Serial.begin(115200);
 
   //Setup Fast Led
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_0, COLOR_ORDER>(leds[0], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_1, COLOR_ORDER>(leds[1], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_2, COLOR_ORDER>(leds[2], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_3, COLOR_ORDER>(leds[3], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_4, COLOR_ORDER>(leds[4], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_5, COLOR_ORDER>(leds[5], NUM_LEDS).setCorrection(TypicalLEDStrip);
+
   FastLED.setBrightness(255);
   FastLED.setDither( 255 );
 
@@ -88,22 +79,54 @@ void setup() {
 }
  
 void loop() {
-  //calcPosUltraSonic();
-  int pos = calcPosTimeOfFlight();
-  if (pos > 0){
-    for(int i = 0; i < 5; i++){
-      if (pos + 1 <= NUM_LEDS){
-        leds[pos + i] = CHSV(pos, 255, 255);    
+  bool falseReading = false;
+  int currPos = calcPosTimeOfFlight();
+  int posDiffSize = abs(currPos - posLast) + 5;
+  static byte colour;
+  colour += 1;
+
+  int pos = int((posLast + currPos)/2);
+  posLast = currPos;
+  
+  if (pos > 100){
+    falsePosCount ++;
+  }
+  else {
+    falsePosCount --;
+  }
+  if (falsePosCount > 15){
+    falseReading = true;
+    falsePosCount = 15;
+  }
+  
+
+  if (pos >= 0 && !falseReading){
+    for(int i = 0; i < posDiffSize; i++){
+      int ledPos = pos + i;
+      if (ledPos < NUM_LEDS && ledPos >= 0){
+        for(int j = 0; j < LED_STRIPS; j++){
+          leds[j][ledPos] = CHSV(colour, 255, 255);    
+        }
+        
+      }
+    }
+  
+  
+    FastLED.show();
+
+    for(int i = 0; i < posDiffSize; i++){
+      int ledPos = pos + i;
+      if (ledPos < NUM_LEDS && ledPos >= 0){
+        for(int j = 0; j < LED_STRIPS; j++){
+          leds[j][ledPos] = CRGB::Black; 
+        }
       }
     }
   }
-  
-  FastLED.show();
-  delay(100);
-
-    for(int i = 0; i < 5; i++){
-      if (pos + 1 <= NUM_LEDS){
-        leds[pos + i] = CRGB::Black;    
-      }
+  else {
+    for(int i = 0; i < LED_STRIPS; i++){
+      fill_solid(leds[i], NUM_LEDS, CRGB::Black);
+      FastLED.show();
     }
+  }
 }
