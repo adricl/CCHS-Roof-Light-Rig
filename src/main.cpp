@@ -5,25 +5,23 @@
 #include <VL53L1X.h>
 #include "SimpleKalmanFilter.h"
 
-#define DIST_SENSOR_TO_LED  25
-
+#define DIST_SENSOR_TO_LED  10
 
 //LED
-#define NUM_LEDS              171
+#define NUM_LEDS              170
 #define NUM_LEDS_PER_METER    30
-#define DATA_PIN_0            18
-#define DATA_PIN_1            5
+#define DATA_PIN_0            2
+#define DATA_PIN_1            3
 #define DATA_PIN_2            4
-#define DATA_PIN_3            2
-#define DATA_PIN_4            15
-#define DATA_PIN_5            13
+#define DATA_PIN_3            5
+#define DATA_PIN_4            6
+#define DATA_PIN_5            7
 
-#define LED_TYPE            WS2812
+#define LED_TYPE            WS2811
 #define COLOR_ORDER         GRB
 
-#define LED_STRIPS          6
 
-CRGB leds[LED_STRIPS][NUM_LEDS];
+CRGB leds[NUM_LEDS];
 VL53L1X sensor;
 int posLast = 0;
 int falsePosCount = 0;
@@ -62,12 +60,12 @@ void setup() {
   Serial.begin(115200);
 
   //Setup Fast Led
-  FastLED.addLeds<LED_TYPE, DATA_PIN_0, COLOR_ORDER>(leds[0], NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.addLeds<LED_TYPE, DATA_PIN_1, COLOR_ORDER>(leds[1], NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.addLeds<LED_TYPE, DATA_PIN_2, COLOR_ORDER>(leds[2], NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.addLeds<LED_TYPE, DATA_PIN_3, COLOR_ORDER>(leds[3], NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.addLeds<LED_TYPE, DATA_PIN_4, COLOR_ORDER>(leds[4], NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.addLeds<LED_TYPE, DATA_PIN_5, COLOR_ORDER>(leds[5], NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_0, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_1, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_3, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_4, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_5, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 
   FastLED.setBrightness(255);
   FastLED.setDither( 255 );
@@ -84,6 +82,10 @@ void setup() {
   sensor.setDistanceMode(VL53L1X::Long);
   sensor.setMeasurementTimingBudget(150000);
   sensor.startContinuous(50);
+
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
+
 }
  
 void loop() {
@@ -100,10 +102,7 @@ void loop() {
     for(int i = 0; i < posDiffSize; i++){
       int ledPos = pos - posDiffSize/2 + i;
       if (ledPos < NUM_LEDS && ledPos >= 0){
-        for(int j = 0; j < LED_STRIPS; j++){
-          leds[j][ledPos] = CHSV(colour, 255, 255);    
-        }
-        
+        leds[ledPos] = CHSV(colour, 255, 255);    
       }
     }
   
@@ -113,16 +112,12 @@ void loop() {
     for(int i = 0; i < posDiffSize; i++){
       int ledPos = pos - posDiffSize/2 + i;
       if (ledPos < NUM_LEDS && ledPos >= 0){
-        for(int j = 0; j < LED_STRIPS; j++){
-          leds[j][ledPos] = CRGB::Black; 
-        }
+        leds[ledPos] = CRGB::Black; 
       }
     }
   }
   else {
-    for(int i = 0; i < LED_STRIPS; i++){
-      fill_solid(leds[i], NUM_LEDS, CRGB::Black);
-      FastLED.show();
-    }
+    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    FastLED.show();
   }
 }
